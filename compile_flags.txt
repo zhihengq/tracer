@@ -1,0 +1,6 @@
+--language=c++
+-std=c++17
+-Wall
+-Wextra
+-pedantic
+-Wno-sign-compare

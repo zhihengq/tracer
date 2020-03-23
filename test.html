@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<script>
+const width = 1920;
+const height = 1080;
+let fov = 140;
+window.onload = () => {
+	const canvas = document.getElementById('canvas');
+	canvas.width = width;
+	canvas.height = height;
+	canvas.style.width = `${width}px`;
+	canvas.style.height = `${height}px`;
+	let socket = new WebSocket('ws://localhost:12345');
+	socket.binaryType = 'arraybuffer';
+	socket.onmessage = (msg) => {
+		let view = new DataView(msg.data);
+		let ctx = document.getElementById('canvas').getContext('2d');
+		let data = ctx.createImageData(width, height);
+		let i = 4;
+		for (let j = 0; j < data.data.length; j += 4) {
+			data.data[j+0] = view.getUint8(i++);
+			data.data[j+1] = view.getUint8(i++);
+			data.data[j+2] = view.getUint8(i++);
+			data.data[j+3] = 255;
+		}
+		ctx.putImageData(data, 0, 0);
+	}
+	socket.onopen = () => {
+		let yaw = 0;
+		let pitch = 0;
+		let roll = 0;
+		const update = () => {
+			let pose = new ArrayBuffer(28);
+			let view = new DataView(pose);
+			let i = 0;
+			view.setUint32(i, new Date().getTime(), true); i += 4;
+			view.setFloat32(i, 0, true); i += 4;
+			view.setFloat32(i, 0, true); i += 4;
+			view.setFloat32(i, 0, true); i += 4;
+			view.setFloat32(i, yaw, true); i += 4;
+			view.setFloat32(i, pitch, true); i += 4;
+			view.setFloat32(i, roll, true); i += 4;
+			socket.send(pose);
+		};
+		const newRay = () => {
+			let rays = new ArrayBuffer(4+4+width*height*8);
+			let view = new DataView(rays);
+			view.setUint32(0, 5, true);
+			view.setUint32(4, width*height, true);
+			let i = 8;
+			const px = Math.tan(fov / 2 * Math.PI / 180) / width;
+			for (let y = -height/2; y < height/2; y++) {
+				for (let x = -width/2; x < width/2; x++) {
+					view.setFloat32(i,  x * px, true); i += 4;
+					view.setFloat32(i, -y * px, true); i += 4;
+				}
+			}
+			socket.send(rays);
+		};
+		newRay();
+		setTimeout(update, 1000);
+		document.addEventListener('keydown', (e) => {
+			switch (e.key) {
+				case 'ArrowLeft':
+					yaw += 5 * Math.PI / 180;
+					break;
+				case 'ArrowRight':
+					yaw -= 5 * Math.PI / 180;
+					break;
+				case 'ArrowUp':
+					pitch += 5 * Math.PI / 180;
+					break;
+				case 'ArrowDown':
+					pitch -= 5 * Math.PI / 180;
+					break;
+				case 'q':
+					roll += 5 * Math.PI / 180;
+					break;
+				case 'e':
+					roll -= 5 * Math.PI / 180;
+					break;
+				case 'z':
+					fov += 5;
+					newRay();
+					setTimeout(update, 500);
+					break;
+				case 'x':
+					fov -= 5;
+					newRay();
+					setTimeout(update, 500);
+					break;
+			}
+			update();
+		})
+	}
+}
+		</script>
+	</head>
+	<body>
+		<canvas id="canvas" />
+	</body>
+</html>
